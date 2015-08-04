@@ -105,7 +105,7 @@ func downloadLinks(links []string, dir string) {
 
 	// pool of 8 goroutine workers
 	// expecting tasks from inputChannel
-	for i := 0; i < 8; i++ {
+	for i := 0; i < config.PoolSize; i++ {
 		wg.Add(1)
 		go worker(inputChannel, outputChannel, wg)
 	}
