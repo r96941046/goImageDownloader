@@ -13,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 )
 
 func parseArgs() (string, error) {
@@ -88,8 +90,20 @@ func downloadLinks(links []string, dir string) {
 
 	fmt.Println("Start downloading images...")
 
-	channel := make(chan int64)
+	time.Sleep(time.Second * 1)
 
+	var wg sync.WaitGroup
+	inputChannel := make(chan []string, len(links))
+	outputChannel := make(chan int64)
+
+	// pool of 8 goroutine workers
+	// expecting tasks from inputChannel
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go worker(inputChannel, outputChannel, wg)
+	}
+
+	// start queuing tasks to gorouting pool
 	for _, link := range links {
 
 		imageUrl, err := url.Parse(link)
@@ -101,18 +115,38 @@ func downloadLinks(links []string, dir string) {
 		fileName := segments[len(segments)-1]
 		downloadPath := filepath.Join(dir, fileName)
 
-		go download(link, downloadPath, channel)
+		input := []string{link, downloadPath}
+		fmt.Println("Sending parameters to goroutine:", input)
+		inputChannel <- input
 	}
 
+	// let the workers know when to stop
+	close(inputChannel)
+
+	// get task results from outputChannel
 	var totalBytes int64
 	for i := 0; i < len(links); i++ {
-		totalBytes += <-channel
+		totalBytes += <-outputChannel
 	}
+
+	// wait for the workers to finish
+	// wg.Wait()
 
 	fmt.Printf("Done, %v bytes of images downloaded", totalBytes)
 }
 
-func download(link string, downloadPath string, channel chan int64) {
+func worker(inputChannel chan []string, outputChannel chan int64, wg sync.WaitGroup) {
+
+	defer wg.Done()
+
+	for input := range inputChannel {
+		download(input[0], input[1], outputChannel)
+	}
+}
+
+func download(link string, downloadPath string, outputChannel chan int64) {
+
+	fmt.Println("Downloading file:", link)
 
 	file, err := os.Create(downloadPath)
 	if err != nil {
@@ -137,7 +171,7 @@ func download(link string, downloadPath string, channel chan int64) {
 		fmt.Println("Copy image to file failed:", err)
 	}
 
-	channel <- size
+	outputChannel <- size
 }
 
 func main() {
@@ -149,5 +183,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	downloadLinks(getLinks(), dir)
+	links := getLinks()
+	if len(links) > 0 {
+		downloadLinks(links, dir)
+	} else {
+		fmt.Println("No links were found")
+	}
 }
