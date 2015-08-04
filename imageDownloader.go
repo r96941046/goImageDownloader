@@ -8,6 +8,7 @@ import (
 	"github.com/r96941046/imageDownloader/config"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -33,10 +34,8 @@ func parseArgs() (string, error) {
 	// os.Args[0] is bin/speechDowloader
 	// filepath.Dir(os.Args[0]) is bin/
 	cwdir, err := filepath.Abs(filepath.Dir(os.Args[0]))
-
 	if err != nil {
-		fmt.Println("Cannot get current working directory:", err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 
 	downloadDir := filepath.Join(cwdir, *dir)
@@ -47,8 +46,7 @@ func parseArgs() (string, error) {
 			os.Mkdir(downloadDir, 0777)
 		} else {
 			// other error
-			fmt.Println("Check download dir failed:", err)
-			os.Exit(1)
+			log.Fatal(err)
 		}
 
 	}
@@ -61,22 +59,31 @@ func getLinks() []string {
 	client := http.Client{}
 
 	req, err := http.NewRequest("GET", config.AlbumLink, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
 	req.Header.Add("Authorization", "Bearer "+config.AccessToken)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 	}
 
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	var jsonmap map[string]*json.RawMessage
 	var images []map[string]interface{}
 
 	err = json.Unmarshal(body, &jsonmap)
 	err = json.Unmarshal(*jsonmap["data"], &images)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	var links []string
 	for _, image := range images {
@@ -108,7 +115,7 @@ func downloadLinks(links []string, dir string) {
 
 		imageUrl, err := url.Parse(link)
 		if err != nil {
-			fmt.Println("Parse url failed:", err)
+			log.Fatal(err)
 		}
 
 		segments := strings.Split(imageUrl.Path, "/")
@@ -150,7 +157,7 @@ func download(link string, downloadPath string, outputChannel chan int64) {
 
 	file, err := os.Create(downloadPath)
 	if err != nil {
-		fmt.Println("Create file failed:", err)
+		log.Fatal(err)
 	}
 
 	defer file.Close()
@@ -159,16 +166,19 @@ func download(link string, downloadPath string, outputChannel chan int64) {
 
 	req, err := http.NewRequest("GET", link, nil)
 	if err != nil {
-		fmt.Println("Download image failed:", err)
+		log.Fatal(err)
 	}
 
 	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	defer resp.Body.Close()
 
 	size, err := io.Copy(file, resp.Body)
 	if err != nil {
-		fmt.Println("Copy image to file failed:", err)
+		log.Fatal(err)
 	}
 
 	outputChannel <- size
@@ -177,10 +187,8 @@ func download(link string, downloadPath string, outputChannel chan int64) {
 func main() {
 
 	dir, err := parseArgs()
-
 	if err != nil {
-		fmt.Println("Parse argument failed:", err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 
 	links := getLinks()
