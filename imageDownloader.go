@@ -5,7 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/r96941046/imageDownloader/config"
+	"github.com/r96941046/goImageDownloader/config"
 	"io"
 	"io/ioutil"
 	"log"
@@ -99,6 +99,8 @@ func downloadLinks(links []string, dir string) {
 
 	time.Sleep(time.Second * 1)
 
+	start := time.Now()
+
 	var wg sync.WaitGroup
 	inputChannel := make(chan []string, len(links))
 	outputChannel := make(chan int64)
@@ -139,7 +141,11 @@ func downloadLinks(links []string, dir string) {
 	// wait for the workers to finish
 	// wg.Wait()
 
-	fmt.Printf("Done, %v bytes of images downloaded", totalBytes)
+	elapsed := time.Since(start)
+
+	fmt.Printf("Done, %v bytes of images downloaded\n", totalBytes)
+	fmt.Printf("All tasks take %v to complete\n", elapsed)
+	fmt.Printf("Each task takes %v to complete", elapsed/time.Duration(len(links)))
 }
 
 func worker(inputChannel chan []string, outputChannel chan int64, wg sync.WaitGroup) {
